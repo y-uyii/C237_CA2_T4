@@ -71,7 +71,7 @@ function isAdmin(req, res, next) {
     next();
 }
 
-// ================= ROUTES =================
+// ================= ADEN - REGISTRATION =================
 
 // 1. Root Route
 app.get('/', (req, res) => {
@@ -258,7 +258,7 @@ app.post('/deleteProfile/:id', isAdmin, async (req, res) => {
     }
 });
 
-// ================= MEMBER 4: REGISTRATIONS =================
+// ================= Harinie - REGISTRATIONS =================
 
 // Student registers for an event
 app.post('/events/:id/register', isLoggedIn, async (req, res) => {
@@ -384,26 +384,31 @@ app.post('/admin/registrations/:id/delete',
 
 //============= YuYi - Announcement ====================
 app.get('/announcement', isLoggedIn, (req, res) => {
-    connection.query('SELECT * FROM events', (error, results) => {
-        if (error) throw error;
+    connection.query(
+        'SELECT * FROM events WHERE announcement = 1',
+        (error, results) => {
+            if (error) throw error;
 
-        let announcements = results;
-        const filter = req.query.filter;
+            let announcements = results;
+            const filter = req.query.filter;
 
-        if (filter) {
-            announcements = announcements.filter(
-                announcement => announcement.category === filter
-            );
+            if (filter) {
+                announcements = announcements.filter(
+                    announcement => announcement.category === filter
+                );
+            }
+
+            res.render('announcement', {
+                message: announcements,
+                user: req.session.user
+            });
         }
-
-        res.render('announcement', { message: announcements });
-    });
+    );
 });
 
-//checkAuthenticated, checkAdmin,
 app.get('/updateAnnouncement/:id', isLoggedIn,isAdmin, (req, res) => {
-    const id = parseInt(req.params.id);
-    connection.query('SELECT * FROM events WHERE event_id = ?', [req.params.id], (error, results) => {
+    const id = req.params.id;
+    connection.query('SELECT * FROM events WHERE event_id = ?', [id], (error, results) => {
         if (error) throw error;
 
         if (results.length > 0) {
@@ -414,14 +419,14 @@ app.get('/updateAnnouncement/:id', isLoggedIn,isAdmin, (req, res) => {
     });
 });
 
-app.post('/updateAnnouncement/:id', upload.single('image'), (req, res) => {
-    const id = parseInt(req.params.id);
+app.post('/updateAnnouncement/:id',isLoggedIn,isAdmin, upload.single('image'), (req, res) => {
+    const id = req.params.id;
     const { title, category, details } = req.body;
     let image;
     if (req.file) {
         image = req.file.filename;
     } else {
-        image = null;
+        image = req.body.existingImage; // Keep the existing image if no new image is uploaded
     }
 
     connection.query('UPDATE events SET image = ?,title = ?, category = ?, details = ? WHERE event_id = ?', [image, title, category, details, id], (error, results) => {
@@ -431,7 +436,7 @@ app.post('/updateAnnouncement/:id', upload.single('image'), (req, res) => {
 });
 
 app.get('/detailAnnouncement/:id',isLoggedIn, (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = req.params.id;
     connection.query('SELECT * FROM events WHERE event_id = ?', [id], (error, results) => {
         if (error) throw error;
         if (results.length > 0) {
@@ -442,37 +447,47 @@ app.get('/detailAnnouncement/:id',isLoggedIn, (req, res) => {
     });
 });
 
-//checkAuthenticated, checkAdmin,
-app.get('/addAnnouncement', isLoggedIn,isAdmin, (req, res) => {
-    res.render('addAnnouncement');
+app.get('/addAnnouncement', isLoggedIn, isAdmin, (req, res) => {
+    connection.query(
+        'SELECT event_id, title FROM events WHERE announcement = 0',
+        (error, results) => {
+            if (error) throw error;
+            res.render('addAnnouncement', { events: results });
+        }
+    );
 });
 
-app.post('/addAnnouncement', upload.single('image'), (req, res) => {
+app.post('/addAnnouncement', isLoggedIn, isAdmin, (req, res) => {
 
-    const { title, category, details } = req.body;
-    let image;
-    if (req.file) {
-        image = req.file.filename; // Save only the filename
-    } else {
-        image = null;
-    }
+    const { eventId } = req.body;
 
-    connection.query('INSERT INTO events (image, title, category, details) VALUES (?, ?, ?, ?)', [image, title, category, details], (error, results) => {
-        if (error) throw error;
-        res.redirect('/announcement');// Redirect back to the announcement page
-    });
+    connection.query(
+        'UPDATE events SET announcement = 1 WHERE event_id = ?',
+        [eventId],
+        (error) => {
+            if (error) throw error;
+
+            res.redirect('/announcement');
+        }
+    );
 });
 
 
-app.get('/deleteAnnouncement/:id', isLoggedIn,isAdmin, (req, res) => {
-    const id = parseInt(req.params.id);
-    connection.query('DELETE FROM events WHERE event_id = ?', [id], (error, results) => {
-        if (error) throw error;
-        res.redirect('/announcement'); // Redirect back to the announcement page
-    });
+app.get('/deleteAnnouncement/:id', isLoggedIn, isAdmin, (req, res) => {
+    const id = req.params.id;
+
+    connection.query(
+        'UPDATE events SET announcement = 0 WHERE event_id = ?',
+        [id],
+        (error) => {
+            if (error) throw error;
+
+            res.redirect('/announcement');
+        }
+    );
 });
 
---------------------Isaac-----------------------------------------
+//============= Isaac - Certificate/ Attendance =========================
 // GET: Main Dashboard (Admin Roster vs Student Events)
 app.get('/', checkAuthenticated, (req, res) => {
     const user = req.session.user;
