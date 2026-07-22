@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Student Dashboard</title>
+</head>
+<body>
+    <h1>Student Dashboard</h1>
+    
+    <h2>Welcome, <%= user.full_name %>!</h2>
+    <p>Your Role: <strong><%= user.role %></strong></p>
+    <p>Your School: <%= user.school %></p>
+
+    <hr>
+
+    <h3>Account Management</h3>
+    <ul>
+        <li><a href="/viewProfile/<%= user.student_id %>">View My Full Profile</a></li>
+        <li><a href="/editProfile/<%= user.student_id %>">Edit Profile</a></li>
+    </ul>
+
+    <hr>
+
+    <h3>Event Actions</h3>
+    <ul>
+        <li><a href="/events">Browse / Search Events</a></li>
+    </ul>
+
+    <hr>
+
+    <form action="/logout" method="POST">
+        <button type="submit">Logout</button>
+    </form>
+</body>
+</html>
