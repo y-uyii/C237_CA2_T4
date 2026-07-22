@@ -382,6 +382,97 @@ app.post('/admin/registrations/:id/delete',
     }
 );
 
+//============= YuYi - Announcement ====================
+app.get('/announcement', isLoggedIn, (req, res) => {
+    connection.query('SELECT * FROM events', (error, results) => {
+        if (error) throw error;
+
+        let announcements = results;
+        const filter = req.query.filter;
+
+        if (filter) {
+            announcements = announcements.filter(
+                announcement => announcement.category === filter
+            );
+        }
+
+        res.render('announcement', { message: announcements });
+    });
+});
+
+//checkAuthenticated, checkAdmin,
+app.get('/updateAnnouncement/:id', isLoggedIn,isAdmin, (req, res) => {
+    const id = parseInt(req.params.id);
+    connection.query('SELECT * FROM events WHERE event_id = ?', [req.params.id], (error, results) => {
+        if (error) throw error;
+
+        if (results.length > 0) {
+            res.render('updateAnnouncement', { message: results[0], id: id });
+        } else {
+            res.redirect('/detailAnnouncement');
+        }
+    });
+});
+
+app.post('/updateAnnouncement/:id', upload.single('image'), (req, res) => {
+    const id = parseInt(req.params.id);
+    const { title, category, details } = req.body;
+    let image;
+    if (req.file) {
+        image = req.file.filename;
+    } else {
+        image = null;
+    }
+
+    connection.query('UPDATE events SET image = ?,title = ?, category = ?, details = ? WHERE event_id = ?', [image, title, category, details, id], (error, results) => {
+        if (error) throw error;
+        res.redirect(`/detailAnnouncement/${id}`); // Redirect back to the announcement page
+    });
+});
+
+app.get('/detailAnnouncement/:id',isLoggedIn, (req, res) => {
+    const id = parseInt(req.params.id);
+    connection.query('SELECT * FROM events WHERE event_id = ?', [id], (error, results) => {
+        if (error) throw error;
+        if (results.length > 0) {
+            res.render('detailAnnouncement', { message: results[0], id: id });
+        } else {
+            res.redirect('/');
+        }
+    });
+});
+
+//checkAuthenticated, checkAdmin,
+app.get('/addAnnouncement', isLoggedIn,isAdmin, (req, res) => {
+    res.render('addAnnouncement');
+});
+
+app.post('/addAnnouncement', upload.single('image'), (req, res) => {
+
+    const { title, category, details } = req.body;
+    let image;
+    if (req.file) {
+        image = req.file.filename; // Save only the filename
+    } else {
+        image = null;
+    }
+
+    connection.query('INSERT INTO events (image, title, category, details) VALUES (?, ?, ?, ?)', [image, title, category, details], (error, results) => {
+        if (error) throw error;
+        res.redirect('/announcement');// Redirect back to the announcement page
+    });
+});
+
+
+app.get('/deleteAnnouncement/:id', isLoggedIn,isAdmin, (req, res) => {
+    const id = parseInt(req.params.id);
+    connection.query('DELETE FROM events WHERE event_id = ?', [id], (error, results) => {
+        if (error) throw error;
+        res.redirect('/announcement'); // Redirect back to the announcement page
+    });
+});
+
+
 // ================= START SERVER =================
 app.listen(3001, () => {
     console.log('Server running on http://localhost:3001');
