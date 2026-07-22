@@ -171,12 +171,10 @@ app.post('/logout', (req, res) => {
 
 // 5. Dashboard Routes
 app.get('/dashboard', isLoggedIn, (req, res) => {
-    if (req.session.user.role === 'Admin') return res.redirect('/admin');
+    if (req.session.user.role === 'Admin') {
+        return res.render('adminDashboard');
+    }
     res.render('Dashboard'); 
-});
-
-app.get('/admin', isAdmin, (req, res) => {
-    res.render('adminDashboard'); 
 });
 
 // 6. View Profile
