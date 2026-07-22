@@ -260,6 +260,130 @@ app.post('/deleteProfile/:id', isAdmin, async (req, res) => {
     }
 });
 
+// ================= MEMBER 4: REGISTRATIONS =================
+
+// Student registers for an event
+app.post('/events/:id/register', isLoggedIn, async (req, res) => {
+    const studentId = req.session.user.student_id;
+    const eventId = req.params.id;
+
+    try {
+        const [existing] = await db.execute(
+            `SELECT * FROM registrations
+             WHERE student_id = ? AND event_id = ?`,
+            [studentId, eventId]
+        );
+
+        if (existing.length > 0) {
+            req.flash('error_msg', 'You have already registered for this event.');
+            return res.redirect(`/events/${eventId}`);
+        }
+
+        await db.execute(
+            `INSERT INTO registrations (student_id, event_id)
+             VALUES (?, ?)`,
+            [studentId, eventId]
+        );
+
+        req.flash('success_msg', 'Successfully registered!');
+        res.redirect(`/events/${eventId}`);
+
+    } catch (err) {
+        console.error(err);
+        req.flash('error_msg', 'Registration failed.');
+        res.redirect(`/events/${eventId}`);
+    }
+});
+
+
+// Student views their registrations
+app.get('/registrations', isLoggedIn, async (req, res) => {
+    try {
+        const [registrations] = await db.execute(
+            `SELECT r.registration_id, r.registered_at,
+                    e.title, e.category, e.location,
+                    e.event_date, e.start_time, e.end_time
+             FROM registrations r
+             JOIN events e ON r.event_id = e.event_id
+             WHERE r.student_id = ?
+             ORDER BY e.event_date`,
+            [req.session.user.student_id]
+        );
+
+        res.render('registrations', { registrations });
+
+    } catch (err) {
+        console.error(err);
+        res.redirect('/dashboard');
+    }
+});
+
+
+// Student cancels their registration
+app.post('/registrations/:id/delete', isLoggedIn, async (req, res) => {
+    try {
+        await db.execute(
+            `DELETE FROM registrations
+             WHERE registration_id = ? AND student_id = ?`,
+            [req.params.id, req.session.user.student_id]
+        );
+
+        req.flash('success_msg', 'Registration cancelled successfully.');
+        res.redirect('/registrations');
+
+    } catch (err) {
+        console.error(err);
+        req.flash('error_msg', 'Unable to cancel registration.');
+        res.redirect('/registrations');
+    }
+});
+
+
+// Admin views all registrations
+app.get('/admin/registrations', isLoggedIn, isAdmin, async (req, res) => {
+    try {
+        const [registrations] = await db.execute(
+            `SELECT r.registration_id, r.student_id, r.registered_at,
+                    u.full_name, u.email,
+                    e.title, e.event_date, e.location
+             FROM registrations r
+             JOIN users u ON r.student_id = u.student_id
+             JOIN events e ON r.event_id = e.event_id
+             ORDER BY r.registered_at DESC`
+        );
+
+        res.render('manageRegistrations', { registrations });
+
+    } catch (err) {
+        console.error(err);
+        res.redirect('/admin');
+    }
+});
+
+
+// Admin removes a student registration
+app.post('/admin/registrations/:id/delete',
+    isLoggedIn,
+    isAdmin,
+    async (req, res) => {
+        try {
+            await db.execute(
+                `DELETE FROM registrations
+                 WHERE registration_id = ?`,
+                [req.params.id]
+            );
+
+            req.flash('success_msg', 'Student removed successfully.');
+            res.redirect('/admin/registrations');
+
+        } catch (err) {
+            console.error(err);
+            req.flash('error_msg', 'Unable to remove student.');
+            res.redirect('/admin/registrations');
+        }
+    }
+);
+
 // ================= START SERVER =================
 app.listen(3001, () => {
     console.log('Server running on http://localhost:3001');
