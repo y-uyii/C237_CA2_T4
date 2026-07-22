@@ -489,7 +489,7 @@ app.get('/deleteAnnouncement/:id', isLoggedIn, isAdmin, (req, res) => {
 
 //============= Isaac - Certificate/ Attendance =========================
 // GET: Main Dashboard (Admin Roster vs Student Events)
-app.get('/attendance', checkAuthenticated, (req, res) => {
+app.get('/attendance', isLoggedIn, async(req,res) => {
     const user = req.session.user;
 
     if (user.role === 'Admin') {
@@ -521,7 +521,7 @@ app.get('/attendance', checkAuthenticated, (req, res) => {
 });
 
 // POST: Admin marks student attendance as Present or Absent
-app.post('/Admin/mark-attendance', checkAdmin, (req, res) => {
+app.post('/Admin/mark-attendance', isAdmin, (req, res) => {
     const { registration_id, status } = req.body;
     const checkinTime = (status === 'Present') ? new Date() : null;
 
@@ -534,7 +534,7 @@ app.post('/Admin/mark-attendance', checkAdmin, (req, res) => {
 });
 
 // GET: Render Certificate
-app.get('/certificate/:registration_id', checkAuthenticated, (req, res) => {
+app.get('/certificate/:registration_id', isLoggedIn, (req, res) => {
     const { registration_id } = req.params;
     const user = req.session.user;
 
