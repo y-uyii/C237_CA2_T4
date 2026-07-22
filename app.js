@@ -384,7 +384,7 @@ app.post('/admin/registrations/:id/delete',
 
 //============= YuYi - Announcement ====================
 app.get('/announcement', isLoggedIn, (req, res) => {
-    connection.query(
+    db.query(
         'SELECT * FROM events WHERE announcement = 1',
         (error, results) => {
             if (error) throw error;
@@ -408,7 +408,7 @@ app.get('/announcement', isLoggedIn, (req, res) => {
 
 app.get('/updateAnnouncement/:id', isLoggedIn,isAdmin, (req, res) => {
     const id = req.params.id;
-    connection.query('SELECT * FROM events WHERE event_id = ?', [id], (error, results) => {
+    db.query('SELECT * FROM events WHERE event_id = ?', [id], (error, results) => {
         if (error) throw error;
 
         if (results.length > 0) {
@@ -429,7 +429,7 @@ app.post('/updateAnnouncement/:id',isLoggedIn,isAdmin, upload.single('image'), (
         image = req.body.existingImage; // Keep the existing image if no new image is uploaded
     }
 
-    connection.query('UPDATE events SET image = ?,title = ?, category = ?, details = ? WHERE event_id = ?', [image, title, category, details, id], (error, results) => {
+    db.query('UPDATE events SET image = ?,title = ?, category = ?, details = ? WHERE event_id = ?', [image, title, category, details, id], (error, results) => {
         if (error) throw error;
         res.redirect(`/detailAnnouncement/${id}`); // Redirect back to the announcement page
     });
@@ -437,7 +437,7 @@ app.post('/updateAnnouncement/:id',isLoggedIn,isAdmin, upload.single('image'), (
 
 app.get('/detailAnnouncement/:id',isLoggedIn, (req, res) => {
     const id = req.params.id;
-    connection.query('SELECT * FROM events WHERE event_id = ?', [id], (error, results) => {
+    db.query('SELECT * FROM events WHERE event_id = ?', [id], (error, results) => {
         if (error) throw error;
         if (results.length > 0) {
             res.render('detailAnnouncement', { message: results[0], id: id });
@@ -448,7 +448,7 @@ app.get('/detailAnnouncement/:id',isLoggedIn, (req, res) => {
 });
 
 app.get('/addAnnouncement', isLoggedIn, isAdmin, (req, res) => {
-    connection.query(
+    db.query(
         'SELECT event_id, title FROM events WHERE announcement = 0',
         (error, results) => {
             if (error) throw error;
@@ -461,7 +461,7 @@ app.post('/addAnnouncement', isLoggedIn, isAdmin, (req, res) => {
 
     const { eventId } = req.body;
 
-    connection.query(
+    db.query(
         'UPDATE events SET announcement = 1 WHERE event_id = ?',
         [eventId],
         (error) => {
@@ -476,7 +476,7 @@ app.post('/addAnnouncement', isLoggedIn, isAdmin, (req, res) => {
 app.get('/deleteAnnouncement/:id', isLoggedIn, isAdmin, (req, res) => {
     const id = req.params.id;
 
-    connection.query(
+    db.query(
         'UPDATE events SET announcement = 0 WHERE event_id = ?',
         [id],
         (error) => {
