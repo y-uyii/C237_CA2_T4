@@ -489,7 +489,7 @@ app.get('/deleteAnnouncement/:id', isLoggedIn, isAdmin, (req, res) => {
 
 //============= Isaac - Certificate/ Attendance =========================
 // GET: Main Dashboard (Admin Roster vs Student Events)
-app.get('/', checkAuthenticated, (req, res) => {
+app.get('/attendance', checkAuthenticated, (req, res) => {
     const user = req.session.user;
 
     if (user.role === 'Admin') {
