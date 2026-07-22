@@ -71,10 +71,10 @@
                             
                             <!-- Buttons-->
                             <div class="card-footer bg-transparent border-top-0 d-flex gap-2 justify-content-center">
-                                <a href="/detailAnnouncement/<%= message[i].id %>" class="btn btn-outline-info btn-sm">View Details</a>
+                                <a href="/detailAnnouncement/<%= message[i].event_id %>" class="btn btn-outline-info btn-sm">View Details</a>
                                 
-                                <% if (user && user.role === 'admin') { %>
-                                    <a href="/deleteAnnouncement/<%= message[i].id %>"
+                                <% if (user && user.role === 'Admin') { %>
+                                    <a href="/deleteAnnouncement/<%= message[i].event_id %>"
                                         class="btn btn-outline-danger btn-sm"
                                         onclick="return confirm('Are you sure you want to delete this announcement?')">Delete</a>
                                 <% } %>
