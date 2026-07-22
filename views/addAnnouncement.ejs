@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <title>RP event</title>
+</head>
+<body>
+    <nav class="navbar navbar-expand-sm bg-dark navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/announcement">RP events</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#collapsibleNavbar">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="collapsibleNavbar">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/events">View Events</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/registration">Registration</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">Profile</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+  <!-- Main Content -->
+  <div class="container mt-4">
+    <h2 class="text-center mb-4">Add New Announcement</h2>
+    <form action="/addAnnouncement" method="POST">
+
+    <label>Select Event</label>
+
+    <select name="eventId">
+        <% events.forEach(event => { %>
+            <option value="<%= event.id %>">
+                <%= event.title %>
+            </option>
+        <% }) %>
+    </select>
+
+    <button type="submit">Create Announcement</button>
+
+</form>
+
+    </form>
+  </div>
+</body>
+</html>
