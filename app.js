@@ -472,6 +472,89 @@ app.get('/deleteAnnouncement/:id', isLoggedIn,isAdmin, (req, res) => {
     });
 });
 
+--------------------Isaac-----------------------------------------
+// GET: Main Dashboard (Admin Roster vs Student Events)
+app.get('/', checkAuthenticated, (req, res) => {
+    const user = req.session.user;
+
+    if (user.role === 'Admin') {
+        // ADMIN: Retrieve all registrations across all students & events
+        const sql = `
+            SELECT r.registration_id, r.status, r.checkin_time, 
+                   s.student_id, s.name AS student_name, e.event_name 
+            FROM registrations r
+            JOIN students s ON r.student_id = s.student_id
+            JOIN events e ON r.event_id = e.event_id
+        `;
+        db.query(sql, (err, results) => {
+            if (err) throw err;
+            res.render('index', { attendanceList: results });
+        });
+    } else {
+        // STUDENT: Retrieve ONLY their registered events
+        const sql = `
+            SELECT r.registration_id, r.status, r.checkin_time, e.event_name 
+            FROM registrations r
+            JOIN events e ON r.event_id = e.event_id
+            WHERE r.student_id = ?
+        `;
+        db.query(sql, [user.student_id], (err, results) => {
+            if (err) throw err;
+            res.render('index', { attendanceList: results });
+        });
+    }
+});
+
+// POST: Admin marks student attendance as Present or Absent
+app.post('/Admin/mark-attendance', checkAdmin, (req, res) => {
+    const { registration_id, status } = req.body;
+    const checkinTime = (status === 'Present') ? new Date() : null;
+
+    const sql = `UPDATE registrations SET status = ?, checkin_time = ? WHERE registration_id = ?`;
+    db.query(sql, [status, checkinTime, registration_id], (err) => {
+        if (err) req.flash('error', 'Could not update status.');
+        else req.flash('success', 'Attendance status updated.');
+        res.redirect('/');
+    });
+});
+
+// GET: Render Certificate
+app.get('/certificate/:registration_id', checkAuthenticated, (req, res) => {
+    const { registration_id } = req.params;
+    const user = req.session.user;
+
+    const sql = `
+        SELECT r.registration_id, r.status, r.student_id, 
+               s.name AS student_name, e.event_name, e.event_date 
+        FROM registrations r
+        JOIN students s ON r.student_id = s.student_id
+        JOIN events e ON r.event_id = e.event_id
+        WHERE r.registration_id = ?
+    `;
+
+    db.query(sql, [registration_id], (err, results) => {
+        if (err || results.length === 0) {
+            req.flash('error', 'Certificate record not found.');
+            return res.redirect('/');
+        }
+
+        const cert = results[0];
+
+        // Security Check 1: Attendance must be 'Present'
+        if (cert.status !== 'Present') {
+            req.flash('error', 'Certificate unavailable: You have not attended this event.');
+            return res.redirect('/');
+        }
+
+        // Security Check 2: Student can only access their own certificate
+        if (user.role !== 'Admin' && cert.student_id !== user.student_id) {
+            req.flash('error', 'Access denied: You cannot view another student\'s certificate.');
+            return res.redirect('/');
+        }
+
+        res.render('certificate', { cert });
+    });
+});
 
 // ================= START SERVER =================
 app.listen(3001, () => {
