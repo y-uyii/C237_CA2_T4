@@ -75,14 +75,7 @@ function isAdmin(req, res, next) {
 
 // 1. Root Route
 app.get('/', (req, res) => {
-    if (req.session.user) {
-        if (req.session.user.role === 'Admin') {
-            return res.redirect('/admin');
-        } else {
-            return res.redirect('/dashboard');
-        }
-    }
-    res.render('index');
+    res.render('announcement');
 });
 
 // 2. Register Routes
@@ -115,7 +108,7 @@ app.post('/register', async (req, res) => {
     }
 });
 
-// 3. Login Routes
+// Login Routes
 app.get('/login', (req, res) => {
     res.render('login');
 });
@@ -124,7 +117,11 @@ app.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        const [rows] = await db.execute('SELECT * FROM users WHERE email = ?', [email]);
+        // Find user by email
+        const [rows] = await db.execute(
+            'SELECT * FROM users WHERE email = ?',
+            [email]
+        );
 
         if (rows.length === 0) {
             req.flash('error_msg', 'Invalid email or password.');
@@ -132,6 +129,8 @@ app.post('/login', async (req, res) => {
         }
 
         const user = rows[0];
+
+        // Verify password
         const [matchRows] = await db.execute(
             'SELECT student_id FROM users WHERE email = ? AND password_hash = SHA1(?)',
             [email, password]
@@ -142,6 +141,7 @@ app.post('/login', async (req, res) => {
             return res.redirect('/login');
         }
 
+        // Store user information in session
         req.session.user = {
             student_id: user.student_id,
             full_name: user.full_name,
@@ -150,15 +150,15 @@ app.post('/login', async (req, res) => {
             school: user.school
         };
 
-        if (user.role === 'Admin') {
-            return res.redirect('/admin');
-        } else {
-            return res.redirect('/dashboard');
-        }
+        req.flash('success_msg', 'Login successful!');
+
+        // Redirect to announcements page
+        return res.redirect('/announcement');
+
     } catch (err) {
         console.error(err);
         req.flash('error_msg', 'An error occurred during login.');
-        res.redirect('/login');
+        return res.redirect('/login');
     }
 });
 
