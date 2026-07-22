@@ -5,6 +5,12 @@ const flash = require('connect-flash');
 
 const app = express();
 
+const multer = require('multer');
+
+const upload = multer({
+    dest:'public/images'
+});
+
 // ================= DATABASE SETUP =================
 const db = mysql.createConnection({
     host: 'c237-annie-mysql.mysql.database.azure.com',
@@ -496,9 +502,9 @@ app.get('/attendance', isLoggedIn, async(req,res) => {
         // ADMIN: Retrieve all registrations across all students & events
         const sql = `
             SELECT r.registration_id, r.status, r.checkin_time, 
-                   s.student_id, s.name AS student_name, e.event_name 
+                   u.student_id, u.full_name AS student_name, e.title 
             FROM registrations r
-            JOIN students s ON r.student_id = s.student_id
+            JOIN users u ON r.student_id = u.student_id
             JOIN events e ON r.event_id = e.event_id
         `;
         db.query(sql, (err, results) => {
@@ -508,7 +514,7 @@ app.get('/attendance', isLoggedIn, async(req,res) => {
     } else {
         // STUDENT: Retrieve ONLY their registered events
         const sql = `
-            SELECT r.registration_id, r.status, r.checkin_time, e.event_name 
+            SELECT r.registration_id, r.status, r.checkin_time, e.title 
             FROM registrations r
             JOIN events e ON r.event_id = e.event_id
             WHERE r.student_id = ?
@@ -521,7 +527,7 @@ app.get('/attendance', isLoggedIn, async(req,res) => {
 });
 
 // POST: Admin marks student attendance as Present or Absent
-app.post('/Admin/mark-attendance', isAdmin, (req, res) => {
+app.post('/admin/mark-attendance', isAdmin, (req, res) => {
     const { registration_id, status } = req.body;
     const checkinTime = (status === 'Present') ? new Date() : null;
 
@@ -539,13 +545,13 @@ app.get('/certificate/:registration_id', isLoggedIn, (req, res) => {
     const user = req.session.user;
 
     const sql = `
-        SELECT r.registration_id, r.status, r.student_id, 
-               s.name AS student_name, e.event_name, e.event_date 
-        FROM registrations r
-        JOIN students s ON r.student_id = s.student_id
-        JOIN events e ON r.event_id = e.event_id
-        WHERE r.registration_id = ?
-    `;
+    SELECT r.registration_id, r.status, r.student_id, 
+           u.full_name AS student_name, e.event_name, e.event_date 
+    FROM registrations r
+    JOIN users u ON r.student_id = u.user_id
+    JOIN events e ON r.event_id = e.event_id
+    WHERE r.registration_id = ?
+`;
 
     db.query(sql, [registration_id], (err, results) => {
         if (err || results.length === 0) {
