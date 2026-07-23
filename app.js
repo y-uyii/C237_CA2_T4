@@ -10,6 +10,7 @@ const multer = require('multer');
 const upload = multer({
     dest: 'public/images'
 });
+app.use(express.static('public'));
 
 // ================= DATABASE SETUP =================
 const db = mysql.createConnection({
