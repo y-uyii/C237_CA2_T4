@@ -762,9 +762,8 @@ app.post('/events/new', isLoggedIn, isAdmin, async (req, res) => {
                 start_time,
                 end_time,
                 capacity,
-                created_by
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 title,
                 description,
