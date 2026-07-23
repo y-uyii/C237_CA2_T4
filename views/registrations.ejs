@@ -21,6 +21,13 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/registration">Registration</a>
                     </li>
+
+                     <% if (user && user.role === 'Student') { %>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/certificate">Certificate</a>
+                    </li>
+                <% } %>
+                
                     <li class="nav-item">
                         <a class="nav-link" href="/dashboard">Profile</a>
                     </li>
