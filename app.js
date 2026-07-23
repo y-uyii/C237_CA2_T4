@@ -10,7 +10,6 @@ const multer = require('multer');
 const upload = multer({
     dest: 'public/images'
 });
-app.use(express.static('public'));
 
 // ================= DATABASE SETUP =================
 const db = mysql.createConnection({
@@ -592,7 +591,6 @@ app.get('/deleteAnnouncement/:id', isLoggedIn, isAdmin, async (req, res) => {
 }
 );
 
-
 //============= Isaac - Certificate/ Attendance =========================
 // GET: Main Dashboard (Admin Roster vs Student Events)
 app.get('/attendance', isLoggedIn, async (req, res) => {
@@ -676,7 +674,496 @@ app.get('/certificate/:registration_id', isLoggedIn, (req, res) => {
         res.render('certificate', { cert });
     });
 });
+// ================= hnin san- EVENT MANAGEMENT ROUTES =================
 
+// List / Search / Filter Events
+app.get('/events', isLoggedIn, async (req, res) => {
+    const { keyword, category, date } = req.query;
+
+    let sql = 'SELECT * FROM events WHERE 1=1';
+    const params = [];
+
+    if (keyword) {
+        sql += ' AND (title LIKE ? OR description LIKE ? OR location LIKE ?)';
+        const like = `%${keyword}%`;
+        params.push(like, like, like);
+    }
+
+    if (category) {
+        sql += ' AND category = ?';
+        params.push(category);
+    }
+
+    if (date) {
+        sql += ' AND event_date = ?';
+        params.push(date);
+    }
+
+    sql += ' ORDER BY event_date ASC, start_time ASC';
+
+    try {
+        const [events] = await db.execute(sql, params);
+
+        const [categoryRows] = await db.execute(
+            `SELECT DISTINCT category
+             FROM events
+             WHERE category IS NOT NULL
+             ORDER BY category`
+        );
+
+        res.render('eventsList', {
+            events,
+            categories: categoryRows.map(row => row.category),
+            filters: {
+                keyword: keyword || '',
+                category: category || '',
+                date: date || ''
+            }
+        });
+
+    } catch (err) {
+        console.error(err);
+        req.flash('error_msg', 'Failed to load events.');
+        res.redirect('/dashboard');
+    }
+});
+
+
+// CREATE EVENT: Show form
+app.get('/events/new', isLoggedIn, isAdmin, (req, res) => {
+    res.render('eventForm', {
+        event: null,
+        formAction: '/events/new'
+    });
+});
+
+
+// CREATE EVENT: Handle form submission
+app.post('/events/new', isLoggedIn, isAdmin, async (req, res) => {
+    const {
+        title,
+        description,
+        category,
+        location,
+        event_date,
+        start_time,
+        end_time,
+        capacity
+    } = req.body;
+
+    try {
+        await db.execute(
+            `INSERT INTO events (
+                title,
+                description,
+                category,
+                location,
+                event_date,
+                start_time,
+                end_time,
+                capacity,
+                created_by
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                title,
+                description,
+                category,
+                location,
+                event_date,
+                start_time,
+                end_time,
+                capacity,
+                req.session.user.student_id
+            ]
+        );
+
+        req.flash('success_msg', 'Event created successfully!');
+        res.redirect('/events');
+
+    } catch (err) {
+        console.error(err);
+        req.flash('error_msg', 'Failed to create event.');
+        res.redirect('/events/new');
+    }
+});
+
+
+// READ EVENT: View event details with activities
+app.get('/events/:id', isLoggedIn, async (req, res) => {
+    const eventId = req.params.id;
+
+    try {
+        const [events] = await db.execute(
+            'SELECT * FROM events WHERE event_id = ?',
+            [eventId]
+        );
+
+        if (events.length === 0) {
+            req.flash('error_msg', 'Event not found.');
+            return res.redirect('/events');
+        }
+
+        const [activities] = await db.execute(
+            `SELECT *
+             FROM activities
+             WHERE event_id = ?
+             ORDER BY activity_date ASC, start_time ASC`,
+            [eventId]
+        );
+
+        res.render('eventdetails', {
+            event: events[0],
+            activities
+        });
+
+    } catch (err) {
+        console.error(err);
+        req.flash('error_msg', 'Server error while fetching event.');
+        res.redirect('/events');
+    }
+});
+
+
+// UPDATE EVENT: Show edit form
+app.get('/events/:id/edit', isLoggedIn, isAdmin, async (req, res) => {
+    try {
+        const [events] = await db.execute(
+            'SELECT * FROM events WHERE event_id = ?',
+            [req.params.id]
+        );
+
+        if (events.length === 0) {
+            req.flash('error_msg', 'Event not found.');
+            return res.redirect('/events');
+        }
+
+        res.render('eventForm', {
+            event: events[0],
+            formAction: `/events/${req.params.id}/edit`
+        });
+
+    } catch (err) {
+        console.error(err);
+        req.flash('error_msg', 'Server error loading edit form.');
+        res.redirect('/events');
+    }
+});
+
+
+// UPDATE EVENT: Save changes
+app.post('/events/:id/edit', isLoggedIn, isAdmin, async (req, res) => {
+    const eventId = req.params.id;
+
+    const {
+        title,
+        description,
+        category,
+        location,
+        event_date,
+        start_time,
+        end_time,
+        capacity
+    } = req.body;
+
+    try {
+        await db.execute(
+            `UPDATE events
+             SET title = ?,
+                 description = ?,
+                 category = ?,
+                 location = ?,
+                 event_date = ?,
+                 start_time = ?,
+                 end_time = ?,
+                 capacity = ?
+             WHERE event_id = ?`,
+            [
+                title,
+                description,
+                category,
+                location,
+                event_date,
+                start_time,
+                end_time,
+                capacity,
+                eventId
+            ]
+        );
+
+        req.flash('success_msg', 'Event updated successfully!');
+        res.redirect(`/events/${eventId}`);
+
+    } catch (err) {
+        console.error(err);
+        req.flash('error_msg', 'Failed to update event.');
+        res.redirect(`/events/${eventId}/edit`);
+    }
+});
+
+
+// DELETE EVENT
+app.post('/events/:id/delete', isLoggedIn, isAdmin, async (req, res) => {
+    const eventId = req.params.id;
+
+    try {
+        await db.execute(
+            'DELETE FROM events WHERE event_id = ?',
+            [eventId]
+        );
+
+        req.flash('success_msg', 'Event deleted successfully.');
+        res.redirect('/events');
+
+    } catch (err) {
+        console.error(err);
+        req.flash(
+            'error_msg',
+            'Failed to delete event. It may have existing registrations.'
+        );
+        res.redirect(`/events/${eventId}`);
+    }
+});
+
+
+// ================= Jayden - ACTIVITY MANAGEMENT ROUTES =================
+
+// CREATE ACTIVITY: Show form
+app.get(
+    '/events/:eventId/activities/new',
+    isLoggedIn,
+    isAdmin,
+    async (req, res) => {
+        const eventId = req.params.eventId;
+
+        try {
+            const [events] = await db.execute(
+                'SELECT * FROM events WHERE event_id = ?',
+                [eventId]
+            );
+
+            if (events.length === 0) {
+                req.flash('error_msg', 'Event not found.');
+                return res.redirect('/events');
+            }
+
+            res.render('activityForm', {
+                event: events[0],
+                activity: null,
+                formAction: `/events/${eventId}/activities/new`
+            });
+
+        } catch (err) {
+            console.error(err);
+            req.flash('error_msg', 'Failed to load activity form.');
+            res.redirect(`/events/${eventId}`);
+        }
+    }
+);
+
+
+// CREATE ACTIVITY: Save new activity
+app.post(
+    '/events/:eventId/activities/new',
+    isLoggedIn,
+    isAdmin,
+    async (req, res) => {
+        const eventId = req.params.eventId;
+
+        const {
+            activity_name,
+            activity_description,
+            activity_date,
+            start_time,
+            end_time,
+            activity_location,
+            activity_category
+        } = req.body;
+
+        try {
+            await db.execute(
+                `INSERT INTO activities (
+                    event_id,
+                    activity_name,
+                    activity_description,
+                    activity_date,
+                    start_time,
+                    end_time,
+                    activity_location,
+                    activity_category
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    eventId,
+                    activity_name,
+                    activity_description,
+                    activity_date,
+                    start_time,
+                    end_time,
+                    activity_location,
+                    activity_category
+                ]
+            );
+
+            req.flash('success_msg', 'Activity added successfully!');
+            res.redirect(`/events/${eventId}`);
+
+        } catch (err) {
+            console.error(err);
+            req.flash('error_msg', 'Failed to add activity.');
+            res.redirect(`/events/${eventId}/activities/new`);
+        }
+    }
+);
+
+
+// UPDATE ACTIVITY: Show edit form
+app.get(
+    '/activities/:id/edit',
+    isLoggedIn,
+    isAdmin,
+    async (req, res) => {
+        const activityId = req.params.id;
+
+        try {
+            const [activities] = await db.execute(
+                'SELECT * FROM activities WHERE activity_id = ?',
+                [activityId]
+            );
+
+            if (activities.length === 0) {
+                req.flash('error_msg', 'Activity not found.');
+                return res.redirect('/events');
+            }
+
+            const activity = activities[0];
+
+            const [events] = await db.execute(
+                'SELECT * FROM events WHERE event_id = ?',
+                [activity.event_id]
+            );
+
+            if (events.length === 0) {
+                req.flash('error_msg', 'Linked event not found.');
+                return res.redirect('/events');
+            }
+
+            res.render('activityForm', {
+                event: events[0],
+                activity,
+                formAction: `/activities/${activityId}/edit`
+            });
+
+        } catch (err) {
+            console.error(err);
+            req.flash('error_msg', 'Failed to load activity.');
+            res.redirect('/events');
+        }
+    }
+);
+
+
+// UPDATE ACTIVITY: Save changes
+app.post(
+    '/activities/:id/edit',
+    isLoggedIn,
+    isAdmin,
+    async (req, res) => {
+        const activityId = req.params.id;
+
+        const {
+            activity_name,
+            activity_description,
+            activity_date,
+            start_time,
+            end_time,
+            activity_location,
+            activity_category
+        } = req.body;
+
+        try {
+            const [activities] = await db.execute(
+                'SELECT event_id FROM activities WHERE activity_id = ?',
+                [activityId]
+            );
+
+            if (activities.length === 0) {
+                req.flash('error_msg', 'Activity not found.');
+                return res.redirect('/events');
+            }
+
+            const eventId = activities[0].event_id;
+
+            await db.execute(
+                `UPDATE activities
+                 SET activity_name = ?,
+                     activity_description = ?,
+                     activity_date = ?,
+                     start_time = ?,
+                     end_time = ?,
+                     activity_location = ?,
+                     activity_category = ?
+                 WHERE activity_id = ?`,
+                [
+                    activity_name,
+                    activity_description,
+                    activity_date,
+                    start_time,
+                    end_time,
+                    activity_location,
+                    activity_category,
+                    activityId
+                ]
+            );
+
+            req.flash('success_msg', 'Activity updated successfully!');
+            res.redirect(`/events/${eventId}`);
+
+        } catch (err) {
+            console.error(err);
+            req.flash('error_msg', 'Failed to update activity.');
+            res.redirect(`/activities/${activityId}/edit`);
+        }
+    }
+);
+
+
+// DELETE ACTIVITY
+app.post(
+    '/activities/:id/delete',
+    isLoggedIn,
+    isAdmin,
+    async (req, res) => {
+        const activityId = req.params.id;
+
+        try {
+            const [activities] = await db.execute(
+                'SELECT event_id FROM activities WHERE activity_id = ?',
+                [activityId]
+            );
+
+            if (activities.length === 0) {
+                req.flash('error_msg', 'Activity not found.');
+                return res.redirect('/events');
+            }
+
+            const eventId = activities[0].event_id;
+
+            await db.execute(
+                'DELETE FROM activities WHERE activity_id = ?',
+                [activityId]
+            );
+
+            req.flash('success_msg', 'Activity deleted successfully!');
+            res.redirect(`/events/${eventId}`);
+
+        } catch (err) {
+            console.error(err);
+            req.flash('error_msg', 'Failed to delete activity.');
+            res.redirect('/events');
+        }
+    }
+);
 // ================= START SERVER =================
 app.listen(3001, () => {
     console.log('Server running on http://localhost:3001');
