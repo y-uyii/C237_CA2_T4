@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Profile</title>
+</head>
+<body>
+    <h1>Edit Profile</h1>
+
+    <% if (error_msg != '') { %>
+        <p><strong>Error:</strong> <%= error_msg %></p>
+    <% } %>
+
+    <form action="/editProfile/<%= profileUser.student_id %>" method="POST">
+        
+        <div>
+            <label>Full Name:</label>
+            <input type="text" name="full_name" value="<%= profileUser.full_name %>" required>
+        </div>
+        
+        <br>
+
+        <div>
+            <label>School:</label>
+            <select name="school" required>
+                <option value="School of Applied Science (SAS)" <%= profileUser.school === 'School of Applied Science (SAS)' ? 'selected' : '' %>>School of Applied Science (SAS)</option>
+                <option value="School of Business (SBZ)" <%= profileUser.school === 'School of Business (SBZ)' ? 'selected' : '' %>>School of Business (SBZ)</option>
+                <option value="School of Engineering (SOE)" <%= profileUser.school === 'School of Engineering (SOE)' ? 'selected' : '' %>>School of Engineering (SOE)</option>
+                <option value="School of Hospitality (SOH)" <%= profileUser.school === 'School of Hospitality (SOH)' ? 'selected' : '' %>>School of Hospitality (SOH)</option>
+                <option value="School of Infocomm (SOI)" <%= profileUser.school === 'School of Infocomm (SOI)' ? 'selected' : '' %>>School of Infocomm (SOI)</option>
+                <option value="School of Sports and Health (SSH)" <%= profileUser.school === 'School of Sports and Health (SSH)' ? 'selected' : '' %>>School of Sports and Health (SSH)</option>
+                <option value="School of Technology for Arts, Media and Design (STA)" <%= profileUser.school === 'School of Technology for Arts, Media and Design (STA)' ? 'selected' : '' %>>School of Technology for Arts, Media and Design (STA)</option>
+            </select>
+        </div>
+        
+        <br>
+
+        <button type="submit">Save Changes</button>
+    </form>
+
+    <br>
+    
+    <p><a href="/viewProfile/<%= profileUser.student_id %>">Cancel and Go Back</a></p>
+
+</body>
+</html>
