@@ -35,7 +35,7 @@
             <div class="alert alert-danger"><%= error_msg %></div>
         <% } %>
 
-        <form action="<%= event ? '/events/' + event.event_id + '/edit' : '/events/add' %>" method="POST">
+        <form action="<%= event ? '/events/' + event.event_id + '/edit' : '/events/new' %>" method="POST">
             <div class="mb-3">
                 <label class="form-label">Title</label>
                 <input type="text" class="form-control" name="title" value="<%= event ? event.title : '' %>" required>

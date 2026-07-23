@@ -1,74 +1,147 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
-    <title><%= event ? 'Edit Event' : 'Create New Event' %></title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Events</title>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body>
-  <nav class="navbar navbar-expand-sm bg-dark navbar-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/announcement">RP events</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#collapsibleNavbar">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="collapsibleNavbar">
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/events">View Events</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/registration">Registration</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/dashboard">Profile</a>
-                    </li>
-                </ul>
-            </div>
+
+<body class="bg-light">
+
+    <div class="container py-5">
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Events</h1>
+
+            <% if (user && user.role==='Admin' ) { %>
+                <a href="/events/new" class="btn btn-primary">
+                    Add Event
+                </a>
+                <% } %>
         </div>
-    </nav>
-    <div class="container">
-        <h1 class="mt-5"><%= event ? 'Edit Event' : 'Create New Event' %></h1>
-        <p><a href="/events">Back to Events</a></p>
 
-        <% if (locals.error_msg && error_msg.length > 0) { %>
-            <div class="alert alert-danger"><%= error_msg %></div>
-        <% } %>
+        <% if (success_msg && success_msg.length> 0) { %>
+            <div class="alert alert-success">
+                <%= success_msg[0] %>
+            </div>
+            <% } %>
 
-        <form action="<%= event ? '/events/' + event.event_id + '/edit' : '/events/add' %>" method="POST">
-            <div class="mb-3">
-                <label class="form-label">Title</label>
-                <input type="text" class="form-control" name="title" value="<%= event ? event.title : '' %>" required>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Description</label>
-                <textarea class="form-control" name="description" rows="4"><%= event ? event.description : '' %></textarea>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Category</label>
-                <input type="text" class="form-control" name="category" value="<%= event ? event.category : '' %>">
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Location</label>
-                <input type="text" class="form-control" name="location" value="<%= event ? event.location : '' %>" required>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Date</label>
-                <input type="date" class="form-control" name="event_date" value="<%= event && event.event_date ? new Date(event.event_date).toISOString().slice(0,10) : '' %>" required>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Start Time</label>
-                <input type="time" class="form-control" name="start_time" value="<%= event && event.start_time ? event.start_time.slice(0,5) : '' %>" required>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">End Time</label>
-                <input type="time" class="form-control" name="end_time" value="<%= event && event.end_time ? event.end_time.slice(0,5) : '' %>" required>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Capacity</label>
-                <input type="number" class="form-control" name="capacity" value="<%= event ? event.capacity : '' %>" min="1" required>
-            </div>
-            <button type="submit" class="btn btn-primary"><%= event ? 'Save Changes' : 'Create Event' %></button>
-        </form>
+                <% if (error_msg && error_msg.length> 0) { %>
+                    <div class="alert alert-danger">
+                        <%= error_msg[0] %>
+                    </div>
+                    <% } %>
+
+                        <div class="card mb-4">
+                            <div class="card-body">
+
+                                <form action="/events" method="GET" class="row g-3">
+
+                                    <div class="col-md-4">
+                                        <label class="form-label">Search</label>
+
+                                        <input type="text" name="keyword" class="form-control"
+                                            value="<%= filters.keyword %>"
+                                            placeholder="Search title, description or location">
+                                    </div>
+
+                                    <div class="col-md-3">
+                                        <label class="form-label">Category</label>
+
+                                        <select name="category" class="form-select">
+                                            <option value="">All Categories</option>
+
+                                            <% categories.forEach(category=> { %>
+                                                <option value="<%= category %>" <%=filters.category===category
+                                                    ? 'selected' : '' %>
+                                                    >
+                                                    <%= category %>
+                                                </option>
+                                                <% }) %>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-3">
+                                        <label class="form-label">Date</label>
+
+                                        <input type="date" name="date" class="form-control" value="<%= filters.date %>">
+                                    </div>
+
+                                    <div class="col-md-2 d-flex align-items-end">
+                                        <button type="submit" class="btn btn-success w-100">
+                                            Search
+                                        </button>
+                                    </div>
+
+                                </form>
+
+                            </div>
+                        </div>
+
+                        <% if (events.length> 0) { %>
+
+                            <div class="row g-4">
+
+                                <% events.forEach(event=> { %>
+
+                                    <div class="col-md-6 col-lg-4">
+
+                                        <div class="card h-100 shadow-sm">
+
+                                            <div class="card-body">
+
+                                                <h4 class="card-title">
+                                                    <%= event.title %>
+                                                </h4>
+
+                                                <p class="mb-1">
+                                                    <strong>Category:</strong>
+                                                    <%= event.category %>
+                                                </p>
+
+                                                <p class="mb-1">
+                                                    <strong>Date:</strong>
+                                                    <%= new Date(event.event_date).toLocaleDateString() %>
+                                                </p>
+
+                                                <p class="mb-1">
+                                                    <strong>Time:</strong>
+                                                    <%= event.start_time %> - <%= event.end_time %>
+                                                </p>
+
+                                                <p class="mb-3">
+                                                    <strong>Location:</strong>
+                                                    <%= event.location %>
+                                                </p>
+
+                                                <a href="/events/<%= event.event_id %>" class="btn btn-info">
+                                                    View Details
+                                                </a>
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+                                    <% }) %>
+
+                            </div>
+
+                            <% } else { %>
+
+                                <div class="alert alert-secondary">
+                                    No events found.
+                                </div>
+
+                                <% } %>
+
     </div>
+
 </body>
+
 </html>
