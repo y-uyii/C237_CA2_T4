@@ -805,12 +805,12 @@ app.get('/events/:id', isLoggedIn, async (req, res) => {
         }
 
         const [activities] = await db.execute(
-            `SELECT *
-             FROM activities
-             WHERE event_id = ?
-             ORDER BY activity_date ASC, start_time ASC`,
-            [eventId]
-        );
+    `SELECT *
+     FROM activities
+     WHERE event_id = ?
+     ORDER BY start_time ASC`,
+    [eventId]
+);
 
         res.render('eventdetails', {
             event: events[0],
