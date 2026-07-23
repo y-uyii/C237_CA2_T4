@@ -8,19 +8,19 @@ const app = express();
 const multer = require('multer');
 
 const upload = multer({
-    dest:'public/images'
+    dest: 'public/images'
 });
 
 // ================= DATABASE SETUP =================
 const db = mysql.createConnection({
     host: 'c237-annie-mysql.mysql.database.azure.com',
     user: 'c237_025',
-    password: 'c237025@2026!',       
+    password: 'c237025@2026!',
     database: 'c237_025_ca2team4',
     ssl: {
-        rejectUnauthorized: false 
-    }    
-}).promise(); 
+        rejectUnauthorized: false
+    }
+}).promise();
 
 // ================= MIDDLEWARE SETUP =================
 app.set('view engine', 'ejs');
@@ -81,7 +81,10 @@ function isAdmin(req, res, next) {
 
 // 1. Root Route
 app.get('/', (req, res) => {
-    res.render('announcement');
+    if (req.session.user) {
+        return res.redirect('/announcement');
+    }
+    res.redirect('/login');
 });
 
 // 2. Register Routes
@@ -180,7 +183,7 @@ app.get('/dashboard', isLoggedIn, (req, res) => {
     if (req.session.user.role === 'Admin') {
         return res.render('adminDashboard');
     }
-    res.render('Dashboard'); 
+    res.render('Dashboard');
 });
 
 // 6. View Profile
@@ -299,28 +302,76 @@ app.post('/events/:id/register', isLoggedIn, async (req, res) => {
     }
 });
 
+//registration page
+app.get('/registration', isLoggedIn, async (req, res) => {
 
-// Student views their registrations
-app.get('/registrations', isLoggedIn, async (req, res) => {
     try {
-        const [registrations] = await db.execute(
-            `SELECT r.registration_id, r.registered_at,
-                    e.title, e.category, e.location,
-                    e.event_date, e.start_time, e.end_time
-             FROM registrations r
-             JOIN events e ON r.event_id = e.event_id
-             WHERE r.student_id = ?
-             ORDER BY e.event_date`,
-            [req.session.user.student_id]
-        );
 
-        res.render('registrations', { registrations });
+        const user = req.session.user;
+        // admin view
+        if (user.role === 'Admin') {
+
+            const [registrations] = await db.execute(
+                `SELECT r.registration_id, r.student_id, r.registered_at,
+                        u.full_name, u.email,
+                        e.title, e.event_date, e.location
+                 FROM registrations r
+                 JOIN users u ON r.student_id = u.student_id
+                 JOIN events e ON r.event_id = e.event_id
+                 ORDER BY r.registered_at DESC`
+            );
+
+            return res.render('manageRegistrations', { registrations });
+
+        }
+        // student view
+        else {
+
+            const [registrations] = await db.execute(
+                `SELECT r.registration_id, r.registered_at,
+                        e.title, e.category, e.location,
+                        e.event_date, e.start_time, e.end_time
+                 FROM registrations r
+                 JOIN events e ON r.event_id = e.event_id
+                 WHERE r.student_id = ?
+                 ORDER BY e.event_date`,
+                [user.student_id]
+            );
+
+            return res.render('registrations', { registrations });
+
+        }
 
     } catch (err) {
         console.error(err);
         res.redirect('/dashboard');
     }
+
 });
+
+
+
+// Student views their registrations
+// app.get('/registrations', isLoggedIn, async (req, res) => {
+//     try {
+//         const [registrations] = await db.execute(
+//             `SELECT r.registration_id, r.registered_at,
+//                     e.title, e.category, e.location,
+//                     e.event_date, e.start_time, e.end_time
+//              FROM registrations r
+//              JOIN events e ON r.event_id = e.event_id
+//              WHERE r.student_id = ?
+//              ORDER BY e.event_date`,
+//             [req.session.user.student_id]
+//         );
+
+//         res.render('registrations', { registrations });
+
+//     } catch (err) {
+//         console.error(err);
+//         res.redirect('/dashboard');
+//     }
+// });
 
 
 // Student cancels their registration
@@ -344,25 +395,25 @@ app.post('/registrations/:id/delete', isLoggedIn, async (req, res) => {
 
 
 // Admin views all registrations
-app.get('/admin/registrations', isLoggedIn, isAdmin, async (req, res) => {
-    try {
-        const [registrations] = await db.execute(
-            `SELECT r.registration_id, r.student_id, r.registered_at,
-                    u.full_name, u.email,
-                    e.title, e.event_date, e.location
-             FROM registrations r
-             JOIN users u ON r.student_id = u.student_id
-             JOIN events e ON r.event_id = e.event_id
-             ORDER BY r.registered_at DESC`
-        );
+// app.get('/admin/registrations', isLoggedIn, isAdmin, async (req, res) => {
+//     try {
+//         const [registrations] = await db.execute(
+//             `SELECT r.registration_id, r.student_id, r.registered_at,
+//                     u.full_name, u.email,
+//                     e.title, e.event_date, e.location
+//              FROM registrations r
+//              JOIN users u ON r.student_id = u.student_id
+//              JOIN events e ON r.event_id = e.event_id
+//              ORDER BY r.registered_at DESC`
+//         );
 
-        res.render('manageRegistrations', { registrations });
+//         res.render('manageRegistrations', { registrations });
 
-    } catch (err) {
-        console.error(err);
-        res.redirect('/admin');
-    }
-});
+//     } catch (err) {
+//         console.error(err);
+//         res.redirect('/admin');
+//     }
+// });
 
 
 // Admin removes a student registration
@@ -389,113 +440,161 @@ app.post('/admin/registrations/:id/delete',
 );
 
 //============= YuYi - Announcement ====================
-app.get('/announcement', isLoggedIn, (req, res) => {
-    db.query(
-        'SELECT * FROM events WHERE announcement = 1',
-        (error, results) => {
-            if (error) throw error;
+app.get('/announcement', isLoggedIn, async (req, res) => {
+    try {
+        const [results] = await db.query(
+            'SELECT * FROM events WHERE announcement = 1'
+        );
 
-            let announcements = results;
-            const filter = req.query.filter;
+        let announcements = results;
+        const filter = req.query.filter;
 
-            if (filter) {
-                announcements = announcements.filter(
-                    announcement => announcement.category === filter
-                );
-            }
-
-            res.render('announcement', {
-                message: announcements,
-                user: req.session.user
-            });
+        if (filter) {
+            announcements = announcements.filter(
+                announcement => announcement.category === filter
+            );
         }
-    );
+
+        res.render('announcement', {
+            message: announcements,
+            user: req.session.user
+        });
+    } catch (err) {
+        console.error(err);
+        res.send("Database error");
+    }
 });
 
-app.get('/updateAnnouncement/:id', isLoggedIn,isAdmin, (req, res) => {
+app.get('/updateAnnouncement/:id', isLoggedIn, isAdmin, async (req, res) => {
     const id = req.params.id;
-    db.query('SELECT * FROM events WHERE event_id = ?', [id], (error, results) => {
-        if (error) throw error;
+
+    try {
+        const [results] = await db.query(
+            'SELECT * FROM events WHERE event_id = ?',
+            [id]
+        );
 
         if (results.length > 0) {
-            res.render('updateAnnouncement', { message: results[0], id: id });
+            res.render('updateAnnouncement', {
+                message: results[0],
+                id: id
+            });
         } else {
-            res.redirect('/detailAnnouncement');
+            res.redirect('/announcement');
         }
-    });
+    } catch (err) {
+        console.error(err);
+        res.redirect('/announcement');
+    }
 });
 
-app.post('/updateAnnouncement/:id',isLoggedIn,isAdmin, upload.single('image'), (req, res) => {
+app.post('/updateAnnouncement/:id', isLoggedIn, isAdmin, upload.single('image'), async (req, res) => {
     const id = req.params.id;
     const { title, category, details } = req.body;
     let image;
     if (req.file) {
         image = req.file.filename;
     } else {
-        image = req.body.existingImage; // Keep the existing image if no new image is uploaded
+        const [result] = await db.query(
+            'SELECT image FROM events WHERE event_id = ?',
+            [id]
+        );
+
+        image = result[0].image;
     }
 
-    db.query('UPDATE events SET image = ?,title = ?, category = ?, details = ? WHERE event_id = ?', [image, title, category, details, id], (error, results) => {
-        if (error) throw error;
-        res.redirect(`/detailAnnouncement/${id}`); // Redirect back to the announcement page
-    });
-});
+    await db.query('UPDATE events SET image = ?,title = ?, category = ?, description = ? WHERE event_id = ?', [image, title, category, details, id]
 
-app.get('/detailAnnouncement/:id',isLoggedIn, (req, res) => {
-    const id = req.params.id;
-    db.query('SELECT * FROM events WHERE event_id = ?', [id], (error, results) => {
-        if (error) throw error;
-        if (results.length > 0) {
-            res.render('detailAnnouncement', { message: results[0], id: id });
-        } else {
-            res.redirect('/');
-        }
-    });
-});
-
-app.get('/addAnnouncement', isLoggedIn, isAdmin, (req, res) => {
-    db.query(
-        'SELECT event_id, title FROM events WHERE announcement = 0',
-        (error, results) => {
-            if (error) throw error;
-            res.render('addAnnouncement', { events: results });
-        }
     );
+
+    res.redirect(`/detailAnnouncement/${id}`); // Redirect back to the announcement page
 });
 
-app.post('/addAnnouncement', isLoggedIn, isAdmin, (req, res) => {
+
+app.get('/detailAnnouncement/:id', isLoggedIn, async (req, res) => {
+    const id = req.params.id;
+
+    try {
+        const [results] = await db.query(
+            'SELECT * FROM events WHERE event_id = ?',
+            [id]
+        );
+
+        if (results.length > 0) {
+            res.render('detailAnnouncement', {
+                message: results[0],
+                id: id
+            });
+        } else {
+            res.redirect('/announcement');
+        }
+    } catch (err) {
+        console.error(err);
+        res.redirect('/announcement');
+    }
+});
+
+// Display add announcement page
+app.get('/addAnnouncement', isLoggedIn, isAdmin, async (req, res) => {
+
+    try {
+        const [results] = await db.query(
+            'SELECT event_id, title FROM events WHERE announcement = 0'
+        );
+
+        res.render('addAnnouncement', { events: results });
+
+    } catch (error) {
+        console.error(error);
+        res.send("Database error");
+    }
+
+});
+
+
+// Add announcement
+app.post('/addAnnouncement', isLoggedIn, isAdmin, async (req, res) => {
 
     const { eventId } = req.body;
 
-    db.query(
-        'UPDATE events SET announcement = 1 WHERE event_id = ?',
-        [eventId],
-        (error) => {
-            if (error) throw error;
+    try {
 
-            res.redirect('/announcement');
-        }
-    );
+        await db.query(
+            'UPDATE events SET announcement = 1 WHERE event_id = ?',
+            [eventId]
+        );
+
+        res.redirect('/announcement');
+
+    } catch (error) {
+        console.error(error);
+        res.send("Database error");
+    }
+
 });
 
 
-app.get('/deleteAnnouncement/:id', isLoggedIn, isAdmin, (req, res) => {
+app.get('/deleteAnnouncement/:id', isLoggedIn, isAdmin, async (req, res) => {
     const id = req.params.id;
 
-    db.query(
-        'UPDATE events SET announcement = 0 WHERE event_id = ?',
-        [id],
-        (error) => {
-            if (error) throw error;
+    try {
+        await db.query(
+            'UPDATE events SET announcement = 0 WHERE event_id = ?',
+            [id]
+        );
 
-            res.redirect('/announcement');
-        }
-    );
-});
+        res.redirect('/announcement');
+    } catch (error) {
+        console.error(error);
+        res.send("Database error");
+    }
+}
+);
+
 
 //============= Isaac - Certificate/ Attendance =========================
 // GET: Main Dashboard (Admin Roster vs Student Events)
-app.get('/attendance', isLoggedIn, async(req,res) => {
+app.get('/attendance', isLoggedIn, async (req, res) => {
     const user = req.session.user;
 
     if (user.role === 'Admin') {
