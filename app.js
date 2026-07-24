@@ -6,10 +6,22 @@ const flash = require('connect-flash');
 const app = express();
 
 const multer = require('multer');
+const path = require('path');
 
-const upload = multer({
-    dest: 'public/images'
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+
+// Set up multer for file uploads
+const storage = multer.diskStorage({
+destination: (req, file, cb) => {
+cb(null, 'public/images'); // Directory to save uploaded files
+},
+filename: (req, file, cb) => {
+cb(null, file.originalname);
+}
 });
+const upload = multer({ storage: storage });
+
 
 // ================= DATABASE SETUP =================
 const db = mysql.createConnection({
@@ -24,6 +36,7 @@ const db = mysql.createConnection({
 
 // ================= MIDDLEWARE SETUP =================
 app.set('view engine', 'ejs');
+app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 
 // Session Setup
@@ -259,11 +272,51 @@ app.post('/deleteProfile/:id', isAdmin, async (req, res) => {
         }
 
         req.flash('success_msg', 'User account deleted successfully.');
-        res.redirect('/admin');
+        res.redirect('/dashboard');
     } catch (err) {
         console.error(err);
         req.flash('error_msg', 'Failed to delete account');
         res.redirect(`/viewProfile/${targetId}`);
+    }
+});
+
+app.get('/admin/users', isLoggedIn, isAdmin, (req, res) => {
+    res.render('manageUsers');
+});
+
+app.post('/admin/users/search', isLoggedIn, isAdmin, async (req, res) => {
+    const searchTerm = (req.body.searchTerm || '').trim();
+
+    if (!searchTerm) {
+        req.flash('error_msg', 'Please enter a student ID or email to search.');
+        return res.redirect('/admin/users');
+    }
+
+    try {
+        let query;
+        let params;
+
+        if (/^\d+$/.test(searchTerm)) {
+            query = 'SELECT student_id FROM users WHERE student_id = ?';
+            params = [searchTerm];
+        } else {
+            query = 'SELECT student_id FROM users WHERE email = ?';
+            params = [searchTerm];
+        }
+
+        const [rows] = await db.execute(query, params);
+
+        if (rows.length === 0) {
+            req.flash('error_msg', 'No user found for that student ID or email.');
+            return res.redirect('/admin/users');
+        }
+
+        const userId = rows[0].student_id;
+        res.redirect(`/viewProfile/${userId}`);
+    } catch (err) {
+        console.error(err);
+        req.flash('error_msg', 'Server error while searching for user.');
+        res.redirect('/admin/users');
     }
 });
 
@@ -384,12 +437,12 @@ app.post('/registrations/:id/delete', isLoggedIn, async (req, res) => {
         );
 
         req.flash('success_msg', 'Registration cancelled successfully.');
-        res.redirect('/registrations');
+        res.redirect('/registration');
 
     } catch (err) {
         console.error(err);
         req.flash('error_msg', 'Unable to cancel registration.');
-        res.redirect('/registrations');
+        res.redirect('/registration');
     }
 });
 
@@ -429,12 +482,12 @@ app.post('/admin/registrations/:id/delete',
             );
 
             req.flash('success_msg', 'Student removed successfully.');
-            res.redirect('/admin/registrations');
+            res.redirect('/registration');
 
         } catch (err) {
             console.error(err);
             req.flash('error_msg', 'Unable to remove student.');
-            res.redirect('/admin/registrations');
+            res.redirect('/registration');
         }
     }
 );
@@ -491,6 +544,7 @@ app.get('/updateAnnouncement/:id', isLoggedIn, isAdmin, async (req, res) => {
 app.post('/updateAnnouncement/:id', isLoggedIn, isAdmin, upload.single('image'), async (req, res) => {
     const id = req.params.id;
     const { title, category, details } = req.body;
+    
     let image;
     if (req.file) {
         image = req.file.filename;
@@ -596,83 +650,128 @@ app.get('/deleteAnnouncement/:id', isLoggedIn, isAdmin, async (req, res) => {
 app.get('/attendance', isLoggedIn, async (req, res) => {
     const user = req.session.user;
 
-    if (user.role === 'Admin') {
-        // ADMIN: Retrieve all registrations across all students & events
-        const sql = `
-            SELECT r.registration_id, r.status, r.checkin_time, 
-                   u.student_id, u.full_name AS student_name, e.title 
-            FROM registrations r
-            JOIN users u ON r.student_id = u.student_id
-            JOIN events e ON r.event_id = e.event_id
-        `;
-        db.query(sql, (err, results) => {
-            if (err) throw err;
-            res.render('index', { attendanceList: results });
-        });
-    } else {
-        // STUDENT: Retrieve ONLY their registered events
-        const sql = `
-            SELECT r.registration_id, r.status, r.checkin_time, e.title 
-            FROM registrations r
-            JOIN events e ON r.event_id = e.event_id
-            WHERE r.student_id = ?
-        `;
-        db.query(sql, [user.student_id], (err, results) => {
-            if (err) throw err;
-            res.render('index', { attendanceList: results });
-        });
+    try {
+        let attendanceList;
+
+        if (user.role === 'Admin') {
+            const [results] = await db.execute(`
+                SELECT r.registration_id,
+                       r.status,
+                       r.checkin_time,
+                       u.student_id,
+                       u.full_name AS student_name,
+                       e.title
+                FROM registrations r
+                JOIN users u ON r.student_id = u.student_id
+                JOIN events e ON r.event_id = e.event_id
+            `);
+
+            attendanceList = results;
+        } else {
+            const [results] = await db.execute(
+                `SELECT r.registration_id,
+                        r.status,
+                        r.checkin_time,
+                        e.title
+                 FROM registrations r
+                 JOIN events e ON r.event_id = e.event_id
+                 WHERE r.student_id = ?`,
+                [user.student_id]
+            );
+
+            attendanceList = results;
+        }
+
+        res.render('attendance', { attendanceList });
+
+    } catch (err) {
+        console.error(err);
+        req.flash('error_msg', 'Unable to load attendance records.');
+        res.redirect('/dashboard');
     }
 });
 
 // POST: Admin marks student attendance as Present or Absent
-app.post('/admin/mark-attendance', isAdmin, (req, res) => {
-    const { registration_id, status } = req.body;
-    const checkinTime = (status === 'Present') ? new Date() : null;
+app.post('/admin/mark-attendance', isAdmin, async (req, res) => {
+    const {
+        registration_id,
+        status,
+        event_id
+    } = req.body;
 
-    const sql = `UPDATE registrations SET status = ?, checkin_time = ? WHERE registration_id = ?`;
-    db.query(sql, [status, checkinTime, registration_id], (err) => {
-        if (err) req.flash('error', 'Could not update status.');
-        else req.flash('success', 'Attendance status updated.');
-        res.redirect('/');
-    });
+    const checkinTime = status === 'Present' ? new Date() : null;
+
+    try {
+        await db.execute(
+            `UPDATE registrations
+             SET status = ?, checkin_time = ?
+             WHERE registration_id = ?`,
+            [status, checkinTime, registration_id]
+        );
+
+        req.flash('success_msg', 'Attendance status updated.');
+
+        // Return to the corresponding event
+        res.redirect(`/events/${event_id}`);
+
+    } catch (err) {
+        console.error(err);
+        req.flash('error_msg', 'Could not update attendance status.');
+        res.redirect(`/events/${event_id}`);
+    }
 });
-
-// GET: Render Certificate
-app.get('/certificate/:registration_id', isLoggedIn, (req, res) => {
+app.get('/certificate/:registration_id', isLoggedIn, async (req, res) => {
     const { registration_id } = req.params;
     const user = req.session.user;
 
-    const sql = `
-    SELECT r.registration_id, r.status, r.student_id, 
-           u.full_name AS student_name, e.event_name, e.event_date 
-    FROM registrations r
-    JOIN users u ON r.student_id = u.user_id
-    JOIN events e ON r.event_id = e.event_id
-    WHERE r.registration_id = ?
-`;
+    try {
+        const [results] = await db.execute(
+            `SELECT r.registration_id,
+                    r.status,
+                    r.student_id,
+                    u.full_name AS student_name,
+                    e.title AS event_name,
+                    e.event_date
+             FROM registrations r
+             JOIN users u ON r.student_id = u.student_id
+             JOIN events e ON r.event_id = e.event_id
+             WHERE r.registration_id = ?`,
+            [registration_id]
+        );
 
-    db.query(sql, [registration_id], (err, results) => {
-        if (err || results.length === 0) {
-            req.flash('error', 'Certificate record not found.');
-            return res.redirect('/');
+        if (results.length === 0) {
+            req.flash('error_msg', 'Certificate record not found.');
+            return res.redirect('/attendance');
         }
 
         const cert = results[0];
 
-        // Security Check 1: Attendance must be 'Present'
         if (cert.status !== 'Present') {
-            req.flash('error', 'Certificate unavailable: You have not attended this event.');
-            return res.redirect('/');
+            req.flash(
+                'error_msg',
+                'Certificate unavailable: You have not attended this event.'
+            );
+            return res.redirect('/attendance');
         }
 
-        // Security Check 2: Student can only access their own certificate
-        if (user.role !== 'Admin' && cert.student_id !== user.student_id) {
-            req.flash('error', 'Access denied: You cannot view another student\'s certificate.');
-            return res.redirect('/');
+        if (
+            user.role !== 'Admin' &&
+            Number(cert.student_id) !== Number(user.student_id)
+        ) {
+            req.flash(
+                'error_msg',
+                'Access denied: You cannot view another student\'s certificate.'
+            );
+            return res.redirect('/attendance');
         }
 
         res.render('certificate', { cert });
-    });
+
+    } catch (err) {
+        console.error(err);
+        req.flash('error_msg', 'Unable to load certificate.');
+        res.redirect('/attendance');
+    }
 });
 // ================= hnin san- EVENT MANAGEMENT ROUTES =================
 
@@ -739,7 +838,15 @@ app.get('/events/new', isLoggedIn, isAdmin, (req, res) => {
 
 
 // CREATE EVENT: Handle form submission
-app.post('/events/new', isLoggedIn, isAdmin, async (req, res) => {
+app.post('/events/new', isLoggedIn, isAdmin, upload.single('image'), async (req, res) => {
+    
+    let image;
+    if (req.file) {
+        image = req.file.filename; // Save only the filename
+    } else {
+        image = null;
+    }
+    
     const {
         title,
         description,
@@ -754,6 +861,7 @@ app.post('/events/new', isLoggedIn, isAdmin, async (req, res) => {
     try {
         await db.execute(
             `INSERT INTO events (
+                image,
                 title,
                 description,
                 category,
@@ -762,9 +870,11 @@ app.post('/events/new', isLoggedIn, isAdmin, async (req, res) => {
                 start_time,
                 end_time,
                 capacity,
+                announcement
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
+                image,
                 title,
                 description,
                 category,
@@ -773,7 +883,7 @@ app.post('/events/new', isLoggedIn, isAdmin, async (req, res) => {
                 start_time,
                 end_time,
                 capacity,
-                req.session.user.student_id
+                0  // Default announcement value
             ]
         );
 
@@ -803,17 +913,39 @@ app.get('/events/:id', isLoggedIn, async (req, res) => {
             return res.redirect('/events');
         }
 
+        // Activities belonging to this event
         const [activities] = await db.execute(
-    `SELECT *
-     FROM activities
-     WHERE event_id = ?
-     ORDER BY start_time ASC`,
-    [eventId]
-);
+            `SELECT *
+             FROM activities
+             WHERE event_id = ?
+             ORDER BY activity_date ASC, start_time ASC`,
+            [eventId]
+        );
+
+        // Registered students belonging to this event
+        let attendanceList = [];
+
+        if (req.session.user.role === 'Admin') {
+            const [registrations] = await db.execute(
+                `SELECT r.registration_id,
+                        r.status,
+                        r.checkin_time,
+                        u.student_id,
+                        u.full_name AS student_name
+                 FROM registrations r
+                 JOIN users u ON r.student_id = u.student_id
+                 WHERE r.event_id = ?
+                 ORDER BY u.full_name ASC`,
+                [eventId]
+            );
+
+            attendanceList = registrations;
+        }
 
         res.render('eventdetails', {
             event: events[0],
-            activities
+            activities,
+            attendanceList
         });
 
     } catch (err) {
