@@ -854,7 +854,6 @@ app.post('/events/new', isLoggedIn, isAdmin, upload.single('image'), async (req,
     try {
         await db.execute(
             `INSERT INTO events (
-                image,
                 title,
                 description,
                 category,
@@ -865,9 +864,8 @@ app.post('/events/new', isLoggedIn, isAdmin, upload.single('image'), async (req,
                 capacity,
                 announcement
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-                image,
                 title,
                 description,
                 category,
