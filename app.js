@@ -838,8 +838,10 @@ app.get('/events/new', isLoggedIn, isAdmin, (req, res) => {
 
 
 // CREATE EVENT: Handle form submission
-app.post('/events/new', isLoggedIn, isAdmin, upload.single('image'), async (req, res) => {
-    
+app.post('/events/new', isLoggedIn, isAdmin, async (req, res) => {
+
+    const image = null; // No image uploaded during event creation
+
     const {
         title,
         description,
@@ -854,6 +856,7 @@ app.post('/events/new', isLoggedIn, isAdmin, upload.single('image'), async (req,
     try {
         await db.execute(
             `INSERT INTO events (
+                image,
                 title,
                 description,
                 category,
@@ -864,8 +867,9 @@ app.post('/events/new', isLoggedIn, isAdmin, upload.single('image'), async (req,
                 capacity,
                 announcement
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
+                image,
                 title,
                 description,
                 category,
@@ -874,7 +878,7 @@ app.post('/events/new', isLoggedIn, isAdmin, upload.single('image'), async (req,
                 start_time,
                 end_time,
                 capacity,
-                0  // Default announcement value
+                0
             ]
         );
 
