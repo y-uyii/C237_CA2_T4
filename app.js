@@ -840,13 +840,6 @@ app.get('/events/new', isLoggedIn, isAdmin, (req, res) => {
 // CREATE EVENT: Handle form submission
 app.post('/events/new', isLoggedIn, isAdmin, upload.single('image'), async (req, res) => {
     
-    let image;
-    if (req.file) {
-        image = req.file.filename; // Save only the filename
-    } else {
-        image = null;
-    }
-    
     const {
         title,
         description,
